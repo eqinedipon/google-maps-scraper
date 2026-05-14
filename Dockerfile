@@ -63,6 +63,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     # fonts-liberation helps with consistent text rendering in headless Chromium
     fonts-liberation \
+    # fonts-noto-color-emoji adds emoji support, useful for scraping businesses with emoji in names
+    fonts-noto-color-emoji \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
