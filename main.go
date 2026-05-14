@@ -2,83 +2,75 @@ package main
 
 import (
 	"context"
-	"errors"
+	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/gosom/google-maps-scraper/runner"
-	"github.com/gosom/google-maps-scraper/runner/databaserunner"
-	"github.com/gosom/google-maps-scraper/runner/filerunner"
-	"github.com/gosom/google-maps-scraper/runner/installplaywright"
-	"github.com/gosom/google-maps-scraper/runner/lambdaaws"
-	"github.com/gosom/google-maps-scraper/runner/webrunner"
+	"github.com/gosom/google-maps-scraper/scraper"
+)
+
+const (
+	defaultConcurrency = 5
+	defaultDepth       = 10
+	defaultLang        = "en"
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	runner.Banner()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-
-		log.Println("Received signal, shutting down...")
-
-		cancel()
-	}()
-
-	cfg := runner.ParseConfig()
-
-	runnerInstance, err := runnerFactory(cfg)
-	if err != nil {
-		cancel()
-		os.Stderr.WriteString(err.Error() + "\n")
-
-		runner.Telemetry().Close()
-
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-
-	if err := runnerInstance.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		os.Stderr.WriteString(err.Error() + "\n")
-
-		_ = runnerInstance.Close(ctx)
-		runner.Telemetry().Close()
-
-		cancel()
-
-		os.Exit(1)
-	}
-
-	_ = runnerInstance.Close(ctx)
-	runner.Telemetry().Close()
-
-	cancel()
-
-	os.Exit(0)
 }
 
-func runnerFactory(cfg *runner.Config) (runner.Runner, error) {
-	switch cfg.RunMode {
-	case runner.RunModeFile:
-		return filerunner.New(cfg)
-	case runner.RunModeDatabase, runner.RunModeDatabaseProduce:
-		return databaserunner.New(cfg)
-	case runner.RunModeInstallPlaywright:
-		return installplaywright.New(cfg)
-	case runner.RunModeWeb:
-		return webrunner.New(cfg)
-	case runner.RunModeAwsLambda:
-		return lambdaaws.New(cfg)
-	case runner.RunModeAwsLambdaInvoker:
-		return lambdaaws.NewInvoker(cfg)
-	default:
-		return nil, fmt.Errorf("%w: %d", runner.ErrInvalidRunMode, cfg.RunMode)
+func run() error {
+	var cfg scraper.Config
+
+	flag.StringVar(&cfg.InputFile, "input", "", "path to input file with search queries (one per line)")
+	flag.StringVar(&cfg.OutputFile, "output", "output.csv", "path to output CSV file")
+	flag.IntVar(&cfg.Concurrency, "concurrency", defaultConcurrency, "number of concurrent scrapers")
+	flag.IntVar(&cfg.Depth, "depth", defaultDepth, "maximum number of results per query")
+	flag.StringVar(&cfg.Lang, "lang", defaultLang, "language code for Google Maps results")
+	flag.BoolVar(&cfg.Debug, "debug", false, "enable debug logging")
+	flag.BoolVar(&cfg.JSON, "json", false, "output results as JSON instead of CSV")
+	flag.Parse()
+
+	// If no input file provided, check for positional arguments
+	if cfg.InputFile == "" && flag.NArg() > 0 {
+		cfg.InputFile = flag.Arg(0)
 	}
+
+	if cfg.InputFile == "" {
+		flag.Usage()
+		return fmt.Errorf("input file is required")
+	}
+
+	// Set up context with cancellation on OS signals
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case sig := <-sigCh:
+			fmt.Fprintf(os.Stderr, "received signal %s, shutting down...\n", sig)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	s, err := scraper.New(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create scraper: %w", err)
+	}
+	defer s.Close()
+
+	if err := s.Run(ctx); err != nil {
+		return fmt.Errorf("scraper run failed: %w", err)
+	}
+
+	return nil
 }
