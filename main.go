@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultConcurrency = 3
+	defaultConcurrency = 5
 	defaultDepth       = 20
 	defaultLang        = "en"
 )
@@ -33,7 +33,8 @@ func run() error {
 	flag.IntVar(&cfg.Depth, "depth", defaultDepth, "maximum number of results per query")
 	flag.StringVar(&cfg.Lang, "lang", defaultLang, "language code for Google Maps results")
 	flag.BoolVar(&cfg.Debug, "debug", false, "enable debug logging")
-	flag.BoolVar(&cfg.JSON, "json", false, "output results as JSON instead of CSV")
+	// default to JSON output since it's easier to post-process with jq
+	flag.BoolVar(&cfg.JSON, "json", true, "output results as JSON instead of CSV")
 	flag.Parse()
 
 	// If no input file provided, check for positional arguments
