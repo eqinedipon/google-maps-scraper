@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	defaultConcurrency = 5
-	defaultDepth       = 10
+	defaultConcurrency = 3
+	defaultDepth       = 20
 	defaultLang        = "en"
 )
 
