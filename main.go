@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultConcurrency = 5
+	defaultConcurrency = 3  // reduced from 5 to be more polite to Google's servers
 	defaultDepth       = 20
 	defaultLang        = "en"
 )
