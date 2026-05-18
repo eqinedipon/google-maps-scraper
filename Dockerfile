@@ -68,6 +68,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation \
     # fonts-noto-color-emoji adds emoji support, useful for scraping businesses with emoji in names
     fonts-noto-color-emoji \
+    # fonts-noto-cjk adds support for Chinese, Japanese, and Korean characters
+    fonts-noto-cjk \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
